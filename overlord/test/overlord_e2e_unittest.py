@@ -8,13 +8,11 @@
 import json
 import os
 import subprocess
+import time
 import unittest
 import urllib
 
 from ws4py.client import WebSocketBaseClient
-
-import factory_common  # pylint: disable=W0611
-from cros.factory.utils import sync_utils
 
 
 _HOST = '127.0.0.1:9000'
@@ -32,11 +30,10 @@ class CloseWebSocket(Exception):
 class TestOverlord(unittest.TestCase):
   def setUp(self):
     self.basedir = os.path.dirname(__file__)
-    bindir = os.path.normpath(os.path.join(self.basedir, '../../../bin'))
-    factorydir = os.path.normpath(os.path.join(self.basedir, '../../../..'))
+    bindir = os.path.normpath(os.path.join(self.basedir, '../../bin'))
+    scriptdir = os.path.normpath(os.path.join(self.basedir, '../../scripts'))
 
-    # Build overlord
-    subprocess.call('make -C %s' % os.path.join(self.basedir, '..'),
+    subprocess.call('make -C %s' % os.path.join(self.basedir, '../..'),
                     shell=True)
 
     env = os.environ.copy()
@@ -51,7 +48,7 @@ class TestOverlord(unittest.TestCase):
                                      '-no-rpc-server'], env=env)
 
     # Launch python implementation of ghost
-    self.pyghost = subprocess.Popen(['%s/py/tools/ghost.py' % factorydir,
+    self.pyghost = subprocess.Popen(['%s/ghost.py' % scriptdir,
                                      '--rand-mid', '--no-lan-disc',
                                      '--no-rpc-server'], env=env)
 
@@ -60,11 +57,13 @@ class TestOverlord(unittest.TestCase):
       return len(clients) == 2
 
     # Wait for clients to connect
-    try:
-      sync_utils.WaitFor(CheckClicent, 30)
-    except:
+    for i in range(300):
+      if CheckClicent():
+        break
+      time.sleep(0.1)
+    else:
       self.tearDown()
-      raise
+      raise RuntimeError('client did not connect in time')
 
   def tearDown(self):
     self.ovl.kill()
